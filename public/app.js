@@ -200,17 +200,21 @@ menuButton?.addEventListener('click', () => {
 });
 
 function selectSectionTab(id) {
+  const validSections = ['home', 'about', 'path', 'events', 'faq', 'join', 'cabinet'];
+  if (!validSections.includes(id)) return;
   for (const button of navigation?.querySelectorAll('[data-section-tab]') || []) {
     const selected = button.dataset.sectionTab === id;
     button.setAttribute('aria-selected', String(selected));
     button.tabIndex = selected ? 0 : -1;
   }
-  for (const sectionId of ['about', 'path', 'events', 'faq', 'join']) {
+  for (const sectionId of ['home', 'about', 'path', 'events', 'faq', 'join', 'cabinet']) {
     const section = document.getElementById(sectionId);
     if (section) section.hidden = sectionId !== id;
   }
   const quote = document.getElementById('path-quote');
   if (quote) quote.hidden = id !== 'path';
+  history.replaceState(null, '', `#${id}`);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   menuButton?.setAttribute('aria-expanded', 'false');
   navigation?.classList.remove('is-open');
 }
@@ -220,10 +224,25 @@ navigation?.addEventListener('click', (event) => {
   if (button) selectSectionTab(button.dataset.sectionTab);
 });
 
+navigation?.addEventListener('keydown', (event) => {
+  const tabs = [...navigation.querySelectorAll('[data-section-tab]')];
+  const current = tabs.indexOf(document.activeElement);
+  if (current < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+    : (current + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+  tabs[next].focus();
+  selectSectionTab(tabs[next].dataset.sectionTab);
+});
+
 document.addEventListener('click', async (event) => {
   const target = event.target.closest('[data-auth-open],[data-section-open],[data-auth-close],[data-profile-toggle],[data-book],[data-cancel],[data-cancel-event],[data-event-book],[data-cancel-slot],[data-refresh-slots],[data-refresh-admin],[data-logout],[data-edit-material],[data-publish-material],[data-edit-event],[data-publish-event]');
   if (!target) return;
-  if (target.hasAttribute('data-section-open')) selectSectionTab(target.dataset.sectionOpen);
+  if (target.hasAttribute('data-section-open')) {
+    event.preventDefault();
+    selectSectionTab(target.dataset.sectionOpen);
+    navigation?.querySelector(`[data-section-tab="${CSS.escape(target.dataset.sectionOpen)}"]`)?.focus();
+  }
   if (target.hasAttribute('data-auth-open')) { event.preventDefault(); openAuth(target.dataset.authOpen); }
   if (target.hasAttribute('data-auth-close')) authDialog.close();
   if (target.hasAttribute('data-profile-toggle')) document.querySelector('#profile-form')?.classList.toggle('is-editing');
@@ -359,4 +378,6 @@ root.addEventListener('change', async (event) => {
   }
 });
 
+const initialSection = location.hash.slice(1);
+if (initialSection) selectSectionTab(initialSection);
 bootstrap();
