@@ -30,9 +30,17 @@ function russianPlural(value, forms) {
 async function api(path, options = {}) {
   const headers = { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers };
   if (!['GET', 'HEAD'].includes(options.method || 'GET') && csrfToken) headers['X-CSRF-Token'] = csrfToken;
-  const response = await fetch(path, { credentials: 'same-origin', ...options, headers });
+  let response;
+  try {
+    response = await fetch(path, { credentials: 'same-origin', ...options, headers });
+  } catch {
+    throw new Error('Не удалось связаться с сервером. Откройте сайт через запущенный backend по адресу http://127.0.0.1:8000, а не как файл или GitHub Pages.');
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 404 && !response.headers.get('content-type')?.includes('application/json')) {
+      throw new Error('Сайт открыт без backend API. Для работы регистрации запустите сервер и откройте http://127.0.0.1:8000.');
+    }
     if (response.status === 401) {
       currentUser = null;
       renderSignedOut();
@@ -53,9 +61,9 @@ function setAuthMode(mode) {
   authMode = mode;
   authMessage.textContent = '';
   const registering = mode === 'register';
-  authTitle.textContent = registering ? 'Заявка кандидата' : 'Вход в кабинет';
+  authTitle.textContent = registering ? 'Создать аккаунт' : 'Вход в кабинет';
   authIntro.textContent = registering
-    ? 'Создайте профиль кандидата. Пароль должен содержать не менее 12 символов. Подтверждение номера по СМС пока не подключено — используйте тестовые данные.'
+    ? 'Зарегистрируйтесь в кабинете ИН МЭИ. Пароль должен содержать не менее 12 символов. Подтверждение номера по СМС пока не подключено — используйте тестовые данные.'
     : 'Введите телефон и пароль.';
   authSubmit.innerHTML = registering ? 'Создать аккаунт <span aria-hidden="true">→</span>' : 'Войти <span aria-hidden="true">→</span>';
   authSwitch.textContent = registering ? 'Уже есть аккаунт? Войти' : 'Ещё нет аккаунта? Зарегистрироваться';
@@ -69,8 +77,8 @@ function setAuthMode(mode) {
 }
 
 function renderSignedOut() {
-  accountActions.innerHTML = `<button class="button button-outline" type="button" data-auth-open="login">Войти</button><button class="button button-primary" type="button" data-auth-open="register">Подать заявку</button>`;
-  root.innerHTML = `<div class="account-welcome"><div><span class="welcome-mark">✳</span><h3>Подайте заявку в наставники</h3><p>Создайте аккаунт, заполните профиль и запишитесь на свободное интервью. После входа вы сможете следить за статусом и получать новости программы.</p></div><button class="button button-primary" type="button" data-auth-open="register">Начать регистрацию <span aria-hidden="true">→</span></button></div><p class="privacy-note">Не передавайте пароль другим людям. Восстановление пароля пока выполняет администратор после проверки личности.</p>`;
+  accountActions.innerHTML = `<button class="button button-outline" type="button" data-auth-open="login">Войти</button><button class="button button-primary" type="button" data-auth-open="register">Регистрация</button>`;
+  root.innerHTML = `<div class="account-welcome"><div><span class="welcome-mark">✳</span><h3>Личный кабинет ИН МЭИ</h3><p>Зарегистрируйтесь, чтобы сохранить профиль, видеть расписание и новости программы. Создание аккаунта не отправляет заявку автоматически.</p></div><button class="button button-primary" type="button" data-auth-open="register">Создать аккаунт <span aria-hidden="true">→</span></button></div><p class="privacy-note">Не передавайте пароль другим людям. Восстановление пароля пока выполняет администратор после проверки личности.</p>`;
 }
 
 function statusPill(status, label) {
@@ -180,7 +188,7 @@ async function bootstrap() {
     currentUser = session.user;
     if (currentUser) await renderWorkspace(); else renderSignedOut();
   } catch {
-    root.innerHTML = `<div class="empty-state">Сервер временно недоступен. Обновите страницу через несколько секунд.</div>`;
+    root.innerHTML = `<div class="empty-state">Backend API не отвечает. Запустите в папке проекта команду <code>python3 server.py</code> (в Windows — <code>py server.py</code>) и откройте сайт по адресу <code>http://127.0.0.1:8000</code>. GitHub Pages и файл index.html не подключены к базе данных.</div>`;
   }
   await renderPublic();
 }
@@ -191,14 +199,31 @@ menuButton?.addEventListener('click', () => {
   navigation?.classList.toggle('is-open', !expanded);
 });
 
-navigation?.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => {
+function selectSectionTab(id) {
+  for (const button of navigation?.querySelectorAll('[data-section-tab]') || []) {
+    const selected = button.dataset.sectionTab === id;
+    button.setAttribute('aria-selected', String(selected));
+    button.tabIndex = selected ? 0 : -1;
+  }
+  for (const sectionId of ['about', 'path', 'events', 'faq', 'join']) {
+    const section = document.getElementById(sectionId);
+    if (section) section.hidden = sectionId !== id;
+  }
+  const quote = document.getElementById('path-quote');
+  if (quote) quote.hidden = id !== 'path';
   menuButton?.setAttribute('aria-expanded', 'false');
-  navigation.classList.remove('is-open');
-}));
+  navigation?.classList.remove('is-open');
+}
+
+navigation?.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-section-tab]');
+  if (button) selectSectionTab(button.dataset.sectionTab);
+});
 
 document.addEventListener('click', async (event) => {
-  const target = event.target.closest('[data-auth-open],[data-auth-close],[data-profile-toggle],[data-book],[data-cancel],[data-cancel-event],[data-event-book],[data-cancel-slot],[data-refresh-slots],[data-refresh-admin],[data-logout],[data-edit-material],[data-publish-material],[data-edit-event],[data-publish-event]');
+  const target = event.target.closest('[data-auth-open],[data-section-open],[data-auth-close],[data-profile-toggle],[data-book],[data-cancel],[data-cancel-event],[data-event-book],[data-cancel-slot],[data-refresh-slots],[data-refresh-admin],[data-logout],[data-edit-material],[data-publish-material],[data-edit-event],[data-publish-event]');
   if (!target) return;
+  if (target.hasAttribute('data-section-open')) selectSectionTab(target.dataset.sectionOpen);
   if (target.hasAttribute('data-auth-open')) { event.preventDefault(); openAuth(target.dataset.authOpen); }
   if (target.hasAttribute('data-auth-close')) authDialog.close();
   if (target.hasAttribute('data-profile-toggle')) document.querySelector('#profile-form')?.classList.toggle('is-editing');

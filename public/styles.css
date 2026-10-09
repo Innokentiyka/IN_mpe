@@ -17,3 +17,11 @@
 @media(max-width:640px){.status-summary{grid-template-columns:repeat(3,1fr)}.status-summary>div:nth-child(3){border-right:0}.status-summary>div:nth-child(n+4){border-top:1px solid #e8eef3}}
 
 @media(max-width:640px){.event-date strong{font-size:20px}}
+
+/* Compact, accessible section tabs */
+[hidden]{display:none!important}
+.main-nav button{border:0;background:transparent;padding:10px 0;cursor:pointer;font:500 10px var(--display);color:#62758a;white-space:nowrap}
+.main-nav button[aria-selected=true]{color:var(--navy);box-shadow:inset 0 -2px #4387b5}
+.hero-actions button.text-link{border:0;background:none;cursor:pointer;font:500 10px var(--display);color:var(--navy);padding:0}
+.hero-actions button:focus-visible,.main-nav button:focus-visible{outline:2px solid #4387b5;outline-offset:4px}
+@media(max-width:640px){.main-nav button{width:100%;text-align:left;padding:7px 0}.main-nav button[aria-selected=true]{box-shadow:none;color:#286a9a}}
